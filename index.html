@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F7F7F5">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="家族カレンダー">
+<title>家族カレンダー</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#F7F7F5;--card:#fff;--text:#1F2328;--sub:#6B7280;--line:#E5E7EB;--soft:#F3F4F6;
+  --blue:#3B82F6;--blue-bg:#DBEAFE;--blue-tx:#1E3A8A;
+  --pink:#EC4899;--pink-bg:#FCE7F3;--pink-tx:#831843;
+  --yel:#EAB308;--yel-bg:#FEF3C7;--yel-tx:#713F12;
+  --red:#DC2626;
+  --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;font-size:16px;line-height:1.5}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,textarea,select{font:inherit;font-size:16px;color:inherit}
+.hidden{display:none!important}
+
+/* ヘッダー・タブ */
+.top{position:sticky;top:0;z-index:5;background:rgba(247,247,245,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  padding:calc(var(--st) + 10px) 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.top h1{font-size:20px;margin:0;font-weight:700}
+.badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--yel-bg);color:var(--yel-tx);font-weight:600}
+main{padding:0 12px calc(96px + var(--sb));max-width:720px;margin:0 auto}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:rgba(255,255,255,.96);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:var(--sb)}
+.tabs button{flex:1;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;color:var(--sub)}
+.tabs button.on{color:var(--text);font-weight:700}
+.tabs svg{width:24px;height:24px}
+.fab{position:fixed;right:18px;bottom:calc(74px + var(--sb));width:58px;height:58px;border-radius:50%;background:var(--text);color:#fff;
+  font-size:32px;line-height:58px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.22);z-index:6}
+
+/* カレンダー */
+.monthbar{display:flex;align-items:center;gap:4px;margin:2px 0 8px}
+.mtitle{font-size:18px;font-weight:700;flex:1;text-align:center}
+.iconbtn{width:42px;height:42px;border-radius:10px;font-size:24px;line-height:42px}
+.iconbtn:active{background:var(--soft)}
+.pillbtn{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px}
+.cal{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.wd,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.wd div{text-align:center;font-size:12px;color:var(--sub);padding:6px 0;border-bottom:1px solid var(--line)}
+.wd div:first-child{color:var(--red)}
+.cell{min-height:76px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px 2px 4px;text-align:left;
+  display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0}
+.cell:nth-child(7n){border-right:0}
+.days .cell:nth-last-child(-n+7){border-bottom:0}
+.dn{font-size:13px;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;align-self:center}
+.cell.out{background:#FAFAF9}.cell.out .dn{color:#C3C7CD}
+.cell.sun .dn{color:var(--red)}
+.cell.today .dn{background:var(--text);color:#fff}
+.cell.sel{background:var(--soft);box-shadow:inset 0 0 0 2px var(--text)}
+.pill{display:block;font-size:10px;line-height:15px;padding:0 2px 0 3px;border-radius:3px;white-space:nowrap;overflow:hidden}
+.more{font-size:10px;color:var(--sub);padding-left:3px;line-height:13px}
+.c-blue{background:var(--blue-bg);color:var(--blue-tx);border-left:3px solid var(--blue)}
+.c-pink{background:var(--pink-bg);color:var(--pink-tx);border-left:3px solid var(--pink)}
+.c-shared{background:var(--yel-bg);color:var(--yel-tx);border-left:3px solid var(--yel)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle}
+.d-blue{background:var(--blue)}.d-pink{background:var(--pink)}.d-shared{background:var(--yel)}
+.legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--sub);margin:8px 0 0}
+.legend span{display:flex;align-items:center;gap:4px}
+.daylist h2{font-size:16px;margin:18px 4px 8px}
+.ev{display:flex;gap:10px;align-items:stretch;background:#fff;border-radius:12px;padding:12px;margin-bottom:8px;border:1px solid var(--line);width:100%;text-align:left}
+.ev .bar{width:5px;border-radius:3px;flex:none}
+.ev .time{font-size:13px;color:var(--sub);min-width:70px;flex:none}
+.ev .t{font-weight:600;word-break:break-word}
+.ev .sub{font-size:12px;color:var(--sub);margin-top:2px;word-break:break-word}
+.empty{color:var(--sub);text-align:center;padding:28px 0;font-size:14px}
+
+/* シート（予定の編集） */
+.sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet-card{position:relative;background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;
+  padding:0 16px calc(20px + var(--sb));animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+.sheet-head{position:sticky;top:0;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 0 10px;z-index:1}
+.sheet-head b{font-size:16px}
+.btn-text{color:var(--sub);padding:6px 4px}
+.btn-primary{background:var(--text);color:#fff;border-radius:10px;padding:8px 18px;font-weight:600}
+.field{display:block;margin:12px 0}
+.field>span{display:block;font-size:13px;color:var(--sub);margin-bottom:4px}
+.inp{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;-webkit-appearance:none;appearance:none}
+input[type=date].inp,input[type=time].inp{min-height:44px}
+textarea.inp{min-height:80px;resize:vertical}
+.row{display:flex;align-items:center;justify-content:space-between;margin:12px 0}
+.row2{display:flex;gap:10px}.row2 .field{flex:1;margin-top:0}
+.switch{position:relative;width:50px;height:30px;-webkit-appearance:none;appearance:none;background:#D1D5DB;border-radius:999px;transition:.2s;margin:0;cursor:pointer}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch:checked{background:#34C759}.switch:checked::after{left:23px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:2px solid var(--line);background:#fff;font-size:14px}
+.chip.on{border-color:var(--text);font-weight:700}
+.chip:disabled{opacity:.35}
+.btn-danger{width:100%;margin-top:18px;padding:12px;border-radius:10px;color:var(--red);background:#FEF2F2;font-weight:600}
+
+/* メモ */
+.notebar{display:flex;gap:8px;margin:2px 0 12px}
+.notebar button{flex:1;padding:12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-weight:600;font-size:15px}
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.note{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:left;min-height:110px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.note .nt{font-weight:700;word-break:break-word}
+.note .nb{font-size:13px;color:var(--sub);white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.note .nm{font-size:11px;color:var(--sub);margin-top:auto}
+.note .kind{font-size:11px;color:var(--sub)}
+.ci{display:flex;gap:4px;font-size:13px;color:var(--sub)}
+.ci.done{text-decoration:line-through;opacity:.6}
+
+.ed-bar{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+.ed-bar .state{font-size:12px;color:var(--sub)}
+.danger-text{color:var(--red);padding:6px 4px}
+.ed-title{width:100%;border:0;background:transparent;font-size:22px;font-weight:700;padding:6px 2px;outline:none}
+.ed-body{width:100%;min-height:55vh;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;resize:vertical;outline:none;line-height:1.7}
+.items{list-style:none;margin:0;padding:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.items li{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line)}
+.items li:last-child{border-bottom:0}
+.items input[type=checkbox]{width:22px;height:22px;flex:none;accent-color:var(--text)}
+.items .it{flex:1;border:0;padding:8px 2px;background:transparent;outline:none;min-width:0}
+.items li.done .it{text-decoration:line-through;color:var(--sub)}
+.items .x{width:34px;height:34px;color:#9CA3AF;font-size:20px;flex:none}
+.additem{display:flex;gap:8px;margin-top:10px}
+.additem .inp{flex:1}
+.additem button{padding:0 16px;border-radius:10px;background:var(--text);color:#fff;font-weight:600}
+.meta{font-size:12px;color:var(--sub);margin:12px 2px}
+.btn-sub{margin-top:10px;font-size:14px;color:var(--sub);padding:8px 2px}
+
+/* 設定・ログイン */
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:15px}
+.card p{margin:6px 0;font-size:14px}
+.hint{font-size:12px!important;color:var(--sub)}
+.btn{display:block;width:100%;padding:12px;border-radius:10px;background:var(--soft);font-weight:600;margin-top:10px}
+.btn.dark{background:var(--text);color:#fff}
+.center{max-width:380px;margin:0 auto;padding:calc(var(--st) + 48px) 20px 40px;text-align:center}
+.center img{width:84px;height:84px;border-radius:20px}
+.center h1{font-size:22px;margin:12px 0 24px}
+.center form{text-align:left}
+.err{color:var(--red);font-size:14px;min-height:20px}
+
+#toast{position:fixed;left:50%;bottom:calc(140px + var(--sb));transform:translateX(-50%);background:rgba(31,35,40,.92);color:#fff;
+  padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="sheet" class="sheet hidden"></div>
+<div id="toast"></div>
+<script src="config.js"></script>
+<script>
+(() => {
+'use strict';
+
+// ===== 基本 =====
+const CFG = window.APP_CONFIG || {};
+const DEMO = !(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
+const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const hm = t => t ? String(t).slice(0, 5) : '';
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+const nowIso = () => new Date().toISOString();
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const REMIND_TIMED = [[null, 'なし'], [0, '開始時刻'], [10, '10分前'], [30, '30分前'], [60, '1時間前'], [1440, '前日の同じ時刻']];
+const REMIND_ALLDAY = [[null, 'なし'], [0, '当日 9:00'], [1440, '前日 9:00']];
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+const ICON = {
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M9 12h7M9 16h5"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>'
+};
+
+const state = {
+  user: null, profile: null, profiles: [],
+  events: [], notes: [], items: [],
+  tab: 'cal', month: null, sel: ymd(new Date()), noteId: null
+};
+let api = null, sb = null, subscribed = false;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function fail(e) { console.error(e); toast('エラー: ' + (e && e.message ? e.message : e)); }
+
+// ===== データ層：デモ（端末内） =====
+function demoApi() {
+  const key = t => 'famcal_demo_' + t;
+  const read = t => { try { return JSON.parse(lsGet(key(t)) || '[]'); } catch { return []; } };
+  const listeners = [];
+  let ch = null;
+  try { ch = new BroadcastChannel('famcal'); ch.onmessage = e => listeners.forEach(f => f(e.data)); } catch {}
+  const write = (t, rows) => { lsSet(key(t), JSON.stringify(rows)); if (ch) ch.postMessage(t); };
+  return {
+    async list(t) { return read(t); },
+    async insert(t, row) { const r = { id: uuid(), created_at: nowIso(), updated_at: nowIso(), ...row }; write(t, [...read(t), r]); return r; },
+    async update(t, id, patch) { write(t, read(t).map(r => r.id === id ? { ...r, ...patch } : r)); },
+    async remove(t, id) {
+      if (t === 'notes') write('note_items', read('note_items').filter(i => i.note_id !== id));
+      write(t, read(t).filter(r => r.id !== id));
+    },
+    onChange(f) { listeners.push(f); window.addEventListener('storage', e => { if (e.key && e.key.startsWith('famcal_demo_')) f(e.key.slice(12)); }); }
+  };
+}
+
+// ===== データ層：Supabase =====
+function sbApi(client) {
+  return {
+    async list(t) { const { data, error } = await client.from(t).select('*'); if (error) throw error; return data; },
+    async insert(t, row) { const { data, error } = await client.from(t).insert(row).select().single(); if (error) throw error; return data; },
+    async update(t, id, patch) { const { error } = await client.from(t).update(patch).eq('id', id); if (error) throw error; },
+    async remove(t, id) { const { error } = await client.from(t).delete().eq('id', id); if (error) throw error; },
+    onChange(f) {
+      client.channel('famcal-db')
+        .on('postgres_changes', { event: '*', schema: 'public' }, p => f(p.table))
+        .subscribe();
+    }
+  };
+}
+
+const TABLES = ['events', 'notes', 'note_items', 'profiles'];
+const KEY = { events: 'events', notes: 'notes', note_items: 'items', profiles: 'profiles' };
+async function refresh(tables = TABLES) {
+  const res = await Promise.all(tables.map(t => api.list(t)));
+  tables.forEach((t, i) => {
+    if (t === 'profiles' && DEMO) return;
+    state[KEY[t]] = res[i];
+  });
+  if (!DEMO) state.profile = state.profiles.find(p => p.id === state.user.id) || state.profile;
+}
+let pendingTables = new Set();
+function onRemote(table) {
+  if (!TABLES.includes(table)) return;
+  pendingTables.add(table);
+  clearTimeout(onRemote._t);
+  onRemote._t = setTimeout(async () => {
+    const ts = [...pendingTables]; pendingTables.clear();
+    try { await refresh(ts); render(); } catch (e) { console.error(e); }
+  }, 150);
+}
+
+// ===== 人・色 =====
+const myColor = () => state.profile ? state.profile.color : 'blue';
+function whoName(c) {
+  if (c === 'shared') return '共通';
+  const p = state.profiles.find(p => p.color === c);
+  return p ? p.name : (c === 'blue' ? '青' : 'ピンク');
+}
+function nameById(id) { const p = state.profiles.find(p => p.id === id); return p ? p.name : ''; }
+
+// ===== 起動 =====
+function loadScript(src) {
+  return new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
+}
+function registerSW() {
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW', e));
+  }
+}
+function setDemoProfile() {
+  state.profiles = [{ id: 'demo-blue', name: 'Aさん', color: 'blue' }, { id: 'demo-pink', name: 'Bさん', color: 'pink' }];
+  const c = lsGet('famcal_demo_color') === 'pink' ? 'pink' : 'blue';
+  state.profile = state.profiles.find(p => p.color === c);
+  state.user = { id: state.profile.id };
+}
+async function seedDemo() {
+  if (lsGet('famcal_demo_seeded')) return;
+  lsSet('famcal_demo_seeded', '1');
+  const d = new Date(), plus = n => { const x = new Date(d); x.setDate(x.getDate() + n); return ymd(x); };
+  await api.insert('events', { title: '歯医者', date: plus(1), all_day: false, start_time: '10:00', end_time: '11:00', who: 'blue', note: '', remind_minutes: 60 });
+  await api.insert('events', { title: '美容院', date: plus(3), all_day: false, start_time: '14:00', end_time: null, who: 'pink', note: '', remind_minutes: null });
+  await api.insert('events', { title: '実家に帰る', date: plus(6), all_day: true, start_time: null, end_time: null, who: 'shared', note: 'お土産を買う', remind_minutes: 1440 });
+  const n1 = await api.insert('notes', { kind: 'checklist', title: '買い物リスト', body: '', updated_by: 'demo-pink' });
+  let i = 0;
+  for (const [text, done] of [['牛乳', false], ['卵', true], ['トイレットペーパー', false]]) {
+    await api.insert('note_items', { note_id: n1.id, text, done, position: i++ });
+  }
+  await api.insert('notes', { kind: 'text', title: '年末の予定案', body: '・大掃除は28日\n・年賀状は25日までに出す', updated_by: 'demo-blue' });
+}
+
+async function boot() {
+  const t = new Date(); state.month = new Date(t.getFullYear(), t.getMonth(), 1);
+  registerSW();
+  if (DEMO) {
+    api = demoApi(); setDemoProfile();
+    await seedDemo();
+    api.onChange(onRemote);
+    await refresh(); render(); return;
+  }
+  if (location.protocol === 'file:') {
+    // ファイル直開きではSupabaseのログイン処理が動かないため案内を出す
+    $('#root').innerHTML = `<div class="center"><img src="icon-192.png" alt=""><h1>家族カレンダー</h1>
+      <p style="text-align:left;font-size:14px">Supabase接続版は、ファイルをダブルクリックで開くと動きません。<br>
+      公開URL（GitHub Pages）から開くか、PCで試す場合はターミナルで<br>
+      <code>python3 -m http.server 8766</code><br>をこのフォルダで実行し、<code>http://localhost:8766/</code> を開いてください。</p></div>`;
+    return;
+  }
+  try { await loadScript(SUPABASE_JS); }
+  catch { $('#root').innerHTML = '<div class="center"><p class="err">ライブラリを読み込めませんでした。通信状況を確認して、再度開いてください。</p></div>'; return; }
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  api = sbApi(sb);
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return renderLogin();
+  await afterLogin(session.user);
+}
+async function afterLogin(user) {
+  state.user = user;
+  try { state.profiles = await api.list('profiles'); } catch (e) { return fail(e); }
+  state.profile = state.profiles.find(p => p.id === user.id) || null;
+  if (!state.profile) return renderProfileSetup();
+  if (!subscribed) { api.onChange(onRemote); subscribed = true; }
+  try { await refresh(); } catch (e) { fail(e); }
+  render();
+}
+document.addEventListener('visibilitychange', () => {
+  // iPhoneでアプリに戻ったとき、離れていた間の変更を取り込む
+  if (document.visibilityState === 'visible' && api && state.profile) refresh().then(render).catch(console.error);
+});
+
+// ===== ログイン・初期設定 =====
+function renderLogin() {
+  $('#root').innerHTML = `<div class="center">
+    <img src="icon-192.png" alt="">
+    <h1>家族カレンダー</h1>
+    <form id="loginForm">
+      <label class="field"><span>メールアドレス</span><input class="inp" type="email" id="l-email" autocomplete="username" required></label>
+      <label class="field"><span>パスワード</span><input class="inp" type="password" id="l-pass" autocomplete="current-password" required></label>
+      <p class="err" id="l-err"></p>
+      <button class="btn dark" type="submit">ログイン</button>
+    </form></div>`;
+}
+function renderProfileSetup() {
+  const taken = state.profiles.map(p => p.color);
+  const first = taken.includes('blue') ? 'pink' : 'blue';
+  $('#root').innerHTML = `<div class="center">
+    <img src="icon-192.png" alt="">
+    <h1>はじめに</h1>
+    <form id="profileForm" data-color="${first}">
+      <label class="field"><span>表示名</span><input class="inp" id="p-name" maxlength="12" placeholder="例：ゆうた" required></label>
+      <div class="field"><span>あなたの色</span>
+        <div class="chips">
+          <button type="button" class="chip ${first === 'blue' ? 'on' : ''}" data-act="pcolor" data-id="blue" ${taken.includes('blue') ? 'disabled' : ''}><i class="dot d-blue"></i>青</button>
+          <button type="button" class="chip ${first === 'pink' ? 'on' : ''}" data-act="pcolor" data-id="pink" ${taken.includes('pink') ? 'disabled' : ''}><i class="dot d-pink"></i>ピンク</button>
+        </div></div>
+      <p class="hint">共通の予定は黄色で表示されます。</p>
+      <p class="err" id="p-err"></p>
+      <button class="btn dark" type="submit">はじめる</button>
+    </form></div>`;
+}
+
+// ===== 画面全体 =====
+function render() {
+  if (!state.profile) return;
+  let shell = $('#shell');
+  if (!shell) {
+    $('#root').innerHTML = `<div id="shell">
+      <header class="top"><h1 id="title"></h1>${DEMO ? '<span class="badge">デモモード</span>' : ''}</header>
+      <main id="main"></main>
+      <button id="fab" class="fab" data-act="add" aria-label="予定を追加">＋</button>
+      <nav class="tabs">
+        <button data-act="tab" data-id="cal">${ICON.cal}<span>カレンダー</span></button>
+        <button data-act="tab" data-id="notes">${ICON.note}<span>メモ</span></button>
+        <button data-act="tab" data-id="settings">${ICON.gear}<span>設定</span></button>
+      </nav></div>`;
+  }
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.id === state.tab));
+  $('#fab').classList.toggle('hidden', state.tab !== 'cal');
+  const titles = { cal: 'カレンダー', notes: 'メモ', settings: '設定' };
+  $('#title').textContent = titles[state.tab];
+  if (state.tab === 'cal') renderCal();
+  else if (state.tab === 'notes') state.noteId ? renderEditor() : renderNotes();
+  else renderSettings();
+}
+
+// ===== カレンダー =====
+function eventsByDate() {
+  const m = {};
+  for (const e of state.events) (m[e.date] = m[e.date] || []).push(e);
+  for (const k in m) m[k].sort(sortEv);
+  return m;
+}
+function sortEv(a, b) {
+  if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+  return hm(a.start_time).localeCompare(hm(b.start_time)) || String(a.title).localeCompare(String(b.title));
+}
+function timeLabel(e) { return e.all_day ? '終日' : hm(e.start_time) + (e.end_time ? '〜' + hm(e.end_time) : ''); }
+function remindLabel(e) {
+  if (e.remind_minutes == null) return '';
+  const list = e.all_day ? REMIND_ALLDAY : REMIND_TIMED;
+  const f = list.find(([v]) => v === e.remind_minutes);
+  return f ? '🔔 ' + f[1] : '';
+}
+function renderCal() {
+  const m = state.month, y = m.getFullYear(), mo = m.getMonth();
+  const start = new Date(y, mo, 1 - m.getDay());
+  const last = new Date(y, mo + 1, 0);
+  const weeks = Math.ceil((m.getDay() + last.getDate()) / 7);
+  const map = eventsByDate(), today = ymd(new Date());
+  let cells = '';
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const k = ymd(d), evs = map[k] || [];
+    const cls = ['cell', d.getMonth() !== mo && 'out', d.getDay() === 0 && 'sun', k === today && 'today', k === state.sel && 'sel'].filter(Boolean).join(' ');
+    const pills = evs.slice(0, 3).map(e => `<span class="pill c-${e.who}">${esc(e.title)}</span>`).join('');
+    const more = evs.length > 3 ? `<span class="more">+${evs.length - 3}</span>` : '';
+    cells += `<button class="${cls}" data-act="day" data-id="${k}"><span class="dn">${d.getDate()}</span>${pills}${more}</button>`;
+  }
+  const sd = parseYmd(state.sel), list = map[state.sel] || [];
+  const items = list.length ? list.map(e => `
+    <button class="ev" data-act="ev" data-id="${e.id}">
+      <span class="bar d-${e.who}"></span>
+      <span class="time">${timeLabel(e)}</span>
+      <span style="flex:1;min-width:0"><div class="t">${esc(e.title)}</div>
+      <div class="sub">${esc(whoName(e.who))}${remindLabel(e) ? '　' + remindLabel(e) : ''}${e.note ? '<br>' + esc(e.note) : ''}</div></span>
+    </button>`).join('') : '<p class="empty">予定はありません<br>右下の＋で追加できます</p>';
+  $('#main').innerHTML = `
+    <div class="monthbar">
+      <button class="iconbtn" data-act="prev" aria-label="前の月">‹</button>
+      <div class="mtitle">${y}年${mo + 1}月</div>
+      <button class="iconbtn" data-act="next" aria-label="次の月">›</button>
+      <button class="pillbtn" data-act="today">今日</button>
+    </div>
+    <div class="cal">
+      <div class="wd">${WD.map(w => `<div>${w}</div>`).join('')}</div>
+      <div class="days">${cells}</div>
+    </div>
+    <div class="legend">
+      <span><i class="dot d-blue"></i>${esc(whoName('blue'))}</span>
+      <span><i class="dot d-pink"></i>${esc(whoName('pink'))}</span>
+      <span><i class="dot d-shared"></i>共通</span>
+    </div>
+    <section class="daylist"><h2>${sd.getMonth() + 1}月${sd.getDate()}日（${WD[sd.getDay()]}）</h2>${items}</section>`;
+}
+
+// ===== 予定の追加・編集シート =====
+let sheet = null;
+function remindOptions(allDay, cur) {
+  const list = allDay ? REMIND_ALLDAY : REMIND_TIMED;
+  if (!list.some(([v]) => v === cur)) cur = cur == null ? null : (cur >= 1440 ? 1440 : 0);
+  return list.map(([v, l]) => `<option value="${v == null ? '' : v}" ${v === cur ? 'selected' : ''}>${l}</option>`).join('');
+}
+function openSheet(ev) {
+  // 新規は「時刻あり」で開き、開始時刻に次の正時（例：14:20→15:00）を入れておく
+  const nextHour = Math.min(new Date().getHours() + 1, 23);
+  const e = ev || { title: '', date: state.sel, all_day: false, start_time: pad(nextHour) + ':00', end_time: null, who: myColor(), note: '', remind_minutes: null };
+  sheet = { id: ev ? ev.id : null, who: e.who };
+  const chip = c => `<button type="button" class="chip ${c === e.who ? 'on' : ''}" data-act="who" data-id="${c}"><i class="dot d-${c}"></i>${esc(whoName(c))}</button>`;
+  $('#sheet').innerHTML = `<div class="sheet-bg" data-act="close"></div>
+    <div class="sheet-card" role="dialog" aria-label="予定">
+      <div class="sheet-head"><button class="btn-text" data-act="close">キャンセル</button><b>${ev ? '予定を編集' : '予定を追加'}</b><button class="btn-primary" data-act="save">保存</button></div>
+      <label class="field"><span>タイトル</span><input class="inp" id="f-title" value="${esc(e.title)}" placeholder="例：歯医者" maxlength="60"></label>
+      <label class="field"><span>日付</span><input class="inp" type="date" id="f-date" value="${esc(e.date)}"></label>
+      <div class="row2 ${e.all_day ? 'hidden' : ''}" id="f-times">
+        <label class="field"><span>開始時刻</span><input class="inp" type="time" id="f-start" value="${hm(e.start_time)}"></label>
+        <label class="field"><span>終了時刻（任意）</span><input class="inp" type="time" id="f-end" value="${hm(e.end_time)}"></label>
+      </div>
+      <div class="row"><span>終日<small style="color:var(--sub);font-size:12px">（時刻を決めない予定）</small></span><input type="checkbox" class="switch" id="f-allday" ${e.all_day ? 'checked' : ''}></div>
+      <div class="field"><span>誰の予定</span><div class="chips">${chip('blue')}${chip('pink')}${chip('shared')}</div></div>
+      <label class="field"><span>リマインド</span><select class="inp" id="f-remind">${remindOptions(e.all_day, e.remind_minutes)}</select></label>
+      <label class="field"><span>メモ</span><textarea class="inp" id="f-note" placeholder="場所・持ち物など">${esc(e.note)}</textarea></label>
+      ${ev ? '<button class="btn-danger" data-act="ev-del">この予定を削除</button>' : ''}
+    </div>`;
+  $('#sheet').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet() { $('#sheet').classList.add('hidden'); $('#sheet').innerHTML = ''; sheet = null; document.body.style.overflow = ''; }
+function computeRemindAt(e) {
+  if (e.remind_minutes == null) return null;
+  const d = parseYmd(e.date);
+  const [h, mi] = (e.all_day ? '09:00' : hm(e.start_time)).split(':').map(Number);
+  d.setHours(h, mi, 0, 0);
+  return new Date(d.getTime() - e.remind_minutes * 60000).toISOString();
+}
+async function saveSheet() {
+  const title = $('#f-title').value.trim();
+  const date = $('#f-date').value;
+  const all_day = $('#f-allday').checked;
+  const start = $('#f-start').value, end = $('#f-end').value;
+  if (!title) return toast('タイトルを入力してください');
+  if (!date) return toast('日付を選んでください');
+  if (!all_day && !start) return toast('開始時刻を入力してください');
+  if (!all_day && end && end < start) return toast('終了時刻が開始時刻より前になっています');
+  const rv = $('#f-remind').value;
+  const row = {
+    title, date, all_day,
+    start_time: all_day ? null : start, end_time: all_day || !end ? null : end,
+    who: sheet.who, note: $('#f-note').value.trim(),
+    remind_minutes: rv === '' ? null : Number(rv), reminded: false, updated_at: nowIso()
+  };
+  row.remind_at = computeRemindAt(row);
+  try {
+    if (sheet.id) await api.update('events', sheet.id, row);
+    else await api.insert('events', row);
+    state.sel = date;
+    const d = parseYmd(date); state.month = new Date(d.getFullYear(), d.getMonth(), 1);
+    closeSheet(); await refresh(['events']); render();
+    if (row.remind_minutes != null && new Date(row.remind_at) < new Date()) toast('保存しました（リマインド時刻は過ぎています）');
+    else toast('保存しました');
+  } catch (e) { fail(e); }
+}
+
+// ===== メモ一覧 =====
+function fmtUpdated(n) {
+  const d = new Date(n.updated_at || n.created_at || Date.now());
+  const who = nameById(n.updated_by);
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}${who ? '・' + esc(who) : ''}`;
+}
+const itemsOf = id => state.items.filter(i => i.note_id === id).sort((a, b) => a.position - b.position);
+function renderNotes() {
+  const notes = [...state.notes].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  const cards = notes.map(n => {
+    let body;
+    if (n.kind === 'checklist') {
+      const its = itemsOf(n.id), done = its.filter(i => i.done).length;
+      body = `<div class="kind">☑ チェックリスト　${done}/${its.length}</div>` +
+        its.slice(0, 4).map(i => `<div class="ci ${i.done ? 'done' : ''}">${i.done ? '☑' : '☐'} ${esc(i.text)}</div>`).join('');
+    } else body = `<div class="nb">${esc(n.body)}</div>`;
+    return `<button class="note" data-act="open-note" data-id="${n.id}"><div class="nt">${esc(n.title) || '（無題）'}</div>${body}<div class="nm">${fmtUpdated(n)}</div></button>`;
+  }).join('');
+  $('#main').innerHTML = `
+    <div class="notebar"><button data-act="new-note" data-id="text">＋ メモ</button><button data-act="new-note" data-id="checklist">＋ チェックリスト</button></div>
+    ${notes.length ? `<div class="notes">${cards}</div>` : '<p class="empty">メモはまだありません</p>'}`;
+}
+
+// ===== メモ編集 =====
+let ed = null; // { id, dirty, timer, pendingItems }
+function currentNote() { return state.notes.find(n => n.id === state.noteId); }
+function renderEditor() {
+  const n = currentNote();
+  if (!n) { if (ed) toast('このメモは削除されました'); state.noteId = null; ed = null; return renderNotes(); }
+  if (ed && ed.id === n.id && $('#editor')) return updateEditor(n);
+  ed = { id: n.id, dirty: false, timer: null, pendingItems: false };
+  $('#main').innerHTML = `<div id="editor">
+    <div class="ed-bar"><button class="btn-text" data-act="back" style="color:var(--text)">‹ メモ一覧</button><span class="state" id="saveState"></span><button class="danger-text" data-act="del-note">削除</button></div>
+    <input class="ed-title" id="n-title" placeholder="タイトル" maxlength="60" value="${esc(n.title)}">
+    ${n.kind === 'checklist'
+      ? `<ul class="items" id="items"></ul>
+         <form class="additem" id="addItem"><input class="inp" id="newItem" placeholder="項目を追加" maxlength="80" enterkeyhint="done"><button type="submit">追加</button></form>
+         <button class="btn-sub" data-act="clear-done">完了した項目をまとめて削除</button>`
+      : `<textarea class="ed-body" id="n-body" placeholder="自由にメモ…">${esc(n.body)}</textarea>`}
+    <p class="meta" id="n-meta">最終更新：${fmtUpdated(n)}</p>
+  </div>`;
+  if (n.kind === 'checklist') renderItems();
+}
+function renderItems() {
+  const ul = $('#items'); if (!ul) return;
+  ed.pendingItems = false;
+  const its = itemsOf(ed.id);
+  ul.innerHTML = its.length ? its.map(i => `<li class="${i.done ? 'done' : ''}">
+      <input type="checkbox" data-item="${i.id}" ${i.done ? 'checked' : ''} aria-label="完了">
+      <input class="it" data-itemtext="${i.id}" value="${esc(i.text)}" maxlength="80">
+      <button class="x" data-act="item-del" data-id="${i.id}" aria-label="削除">×</button></li>`).join('')
+    : '<li style="color:var(--sub);font-size:14px;padding:12px">項目はまだありません</li>';
+}
+function updateEditor(n) {
+  // 相手の変更を反映。自分が入力中の欄は上書きしない
+  const t = $('#n-title'), b = $('#n-body');
+  if (t && document.activeElement !== t && !ed.dirty) t.value = n.title;
+  if (b && document.activeElement !== b && !ed.dirty) b.value = n.body;
+  if ($('#items')) {
+    if ($('#items').contains(document.activeElement)) ed.pendingItems = true;
+    else renderItems();
+  }
+  $('#n-meta').innerHTML = '最終更新：' + fmtUpdated(n);
+}
+function scheduleNoteSave() {
+  ed.dirty = true; $('#saveState').textContent = '入力中…';
+  clearTimeout(ed.timer); ed.timer = setTimeout(saveNote, 600);
+}
+async function saveNote() {
+  if (!ed || !ed.dirty) return;
+  clearTimeout(ed.timer);
+  const patch = { title: $('#n-title').value, updated_at: nowIso(), updated_by: state.user.id };
+  if ($('#n-body')) patch.body = $('#n-body').value;
+  const id = ed.id;
+  try {
+    $('#saveState').textContent = '保存中…';
+    await api.update('notes', id, patch);
+    const n = state.notes.find(x => x.id === id); if (n) Object.assign(n, patch);
+    if (ed && ed.id === id) { ed.dirty = false; $('#saveState').textContent = '保存しました'; }
+  } catch (e) { fail(e); if ($('#saveState')) $('#saveState').textContent = '保存できませんでした'; }
+}
+async function touchNote(id) {
+  const patch = { updated_at: nowIso(), updated_by: state.user.id };
+  await api.update('notes', id, patch);
+}
+async function leaveEditor() {
+  if (ed) {
+    await saveNote();
+    const n = currentNote();
+    if (n && n.kind === 'text' && !n.title.trim() && !n.body.trim()) { try { await api.remove('notes', n.id); } catch {} }
+    if (n && n.kind === 'checklist' && !n.title.trim() && !itemsOf(n.id).length) { try { await api.remove('notes', n.id); } catch {} }
+  }
+  state.noteId = null; ed = null;
+  await refresh(['notes', 'note_items']).catch(console.error);
+}
+
+// ===== 設定 =====
+async function pushStatus() {
+  if (DEMO) return 'デモモードでは通知の登録はできません（Supabase接続後に使えます）。';
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window))
+    return 'この画面では通知を使えません。iPhoneでは、Safariの共有ボタン→「ホーム画面に追加」で追加したアプリから開いてください（iOS 16.4以上）。';
+  if (Notification.permission === 'denied') return '通知が拒否されています。iPhoneの「設定」→「通知」→「家族カレンダー」で許可してください。';
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    return sub ? '✅ この端末で通知を受け取ります。' : '通知はまだオフです。';
+  } catch { return '通知の状態を確認できませんでした。'; }
+}
+function renderSettings() {
+  const p = state.profile;
+  $('#main').innerHTML = `
+    <section class="card"><h3>あなた</h3><p><i class="dot d-${p.color}"></i>　${esc(p.name)}（${p.color === 'blue' ? '青' : 'ピンク'}）</p>
+      <p class="hint">予定の色：${esc(whoName('blue'))}＝青、${esc(whoName('pink'))}＝ピンク、共通＝黄色</p></section>
+    <section class="card"><h3>通知（リマインド）</h3>
+      <p id="pushStatus">確認中…</p>
+      ${DEMO ? '' : '<button class="btn dark" data-act="push">この端末で通知をオンにする</button>'}
+      <button class="btn" data-act="test-notif">テスト通知を表示</button>
+      <p class="hint">自分の予定は自分に、共通の予定は2人ともに通知されます。</p></section>
+    ${DEMO ? `<section class="card"><h3>デモモード</h3>
+      <p>Supabaseが未設定のため、このブラウザの中だけで動いています。同じブラウザで別のタブを開くと、変更がすぐ反映される様子を試せます。</p>
+      <div class="field"><span>表示する人を切り替え</span><div class="chips">
+        <button class="chip ${p.color === 'blue' ? 'on' : ''}" data-act="demo-as" data-id="blue"><i class="dot d-blue"></i>Aさん（青）</button>
+        <button class="chip ${p.color === 'pink' ? 'on' : ''}" data-act="demo-as" data-id="pink"><i class="dot d-pink"></i>Bさん（ピンク）</button></div></div>
+      <button class="btn" data-act="demo-clear">デモデータを消す</button></section>`
+    : `<section class="card"><h3>アカウント</h3><p class="hint">${esc(state.user.email || '')}</p><button class="btn" data-act="logout">ログアウト</button></section>`}`;
+  pushStatus().then(s => { const el = $('#pushStatus'); if (el) el.textContent = s; });
+}
+function b64uToU8(s) {
+  const p = '='.repeat((4 - s.length % 4) % 4);
+  const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+async function enablePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('ホーム画面に追加したアプリから操作してください');
+  if (!CFG.VAPID_PUBLIC_KEY) return toast('通知の鍵（VAPID）が未設定です');
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { renderSettings(); return toast('通知が許可されませんでした'); }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription() ||
+      await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(CFG.VAPID_PUBLIC_KEY) });
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert(
+      { user_id: state.user.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    toast('通知をオンにしました'); renderSettings();
+  } catch (e) { fail(e); }
+}
+async function testNotif() {
+  if (!('Notification' in window)) return toast('この画面では通知を使えません');
+  const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if (perm !== 'granted') return toast('通知が許可されていません');
+  try {
+    const reg = 'serviceWorker' in navigator && location.protocol !== 'file:' ? await navigator.serviceWorker.ready : null;
+    if (reg) await reg.showNotification('家族カレンダー', { body: 'テスト通知です。リマインドはこのように届きます。', icon: 'icon-192.png' });
+    else new Notification('家族カレンダー', { body: 'テスト通知です。' });
+  } catch (e) { fail(e); }
+}
+
+// ===== 操作 =====
+document.addEventListener('click', async ev => {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  try {
+    switch (act) {
+      case 'tab':
+        if (state.tab === 'notes' && state.noteId) await leaveEditor();
+        state.tab = id; render(); window.scrollTo(0, 0); break;
+      case 'prev': case 'next': {
+        const m = state.month; state.month = new Date(m.getFullYear(), m.getMonth() + (act === 'next' ? 1 : -1), 1); render(); break;
+      }
+      case 'today': { const t = new Date(); state.month = new Date(t.getFullYear(), t.getMonth(), 1); state.sel = ymd(t); render(); break; }
+      case 'day': {
+        state.sel = id; const d = parseYmd(id);
+        if (d.getMonth() !== state.month.getMonth()) state.month = new Date(d.getFullYear(), d.getMonth(), 1);
+        render(); break;
+      }
+      case 'add': openSheet(null); break;
+      case 'ev': { const e = state.events.find(x => x.id === id); if (e) openSheet(e); break; }
+      case 'close': closeSheet(); break;
+      case 'save': await saveSheet(); break;
+      case 'who':
+        sheet.who = id; document.querySelectorAll('#sheet [data-act=who]').forEach(b => b.classList.toggle('on', b.dataset.id === id)); break;
+      case 'ev-del':
+        if (!confirm('この予定を削除しますか？')) break;
+        await api.remove('events', sheet.id); closeSheet(); await refresh(['events']); render(); toast('削除しました'); break;
+      case 'new-note': {
+        const n = await api.insert('notes', { kind: id, title: '', body: '', updated_by: state.user.id, updated_at: nowIso() });
+        await refresh(['notes']); state.noteId = n.id; ed = null; render();
+        setTimeout(() => { const f = id === 'text' ? $('#n-body') : $('#newItem'); if (f) f.focus(); }, 50);
+        break;
+      }
+      case 'open-note': state.noteId = id; ed = null; render(); window.scrollTo(0, 0); break;
+      case 'back': await leaveEditor(); render(); break;
+      case 'del-note':
+        if (!confirm('このメモを削除しますか？')) break;
+        clearTimeout(ed.timer); await api.remove('notes', state.noteId);
+        state.noteId = null; ed = null; await refresh(['notes', 'note_items']); render(); toast('削除しました'); break;
+      case 'item-del':
+        await api.remove('note_items', id); await touchNote(ed.id); await refresh(['note_items', 'notes']); render(); break;
+      case 'clear-done': {
+        const done = itemsOf(ed.id).filter(i => i.done);
+        if (!done.length) { toast('完了した項目はありません'); break; }
+        for (const i of done) await api.remove('note_items', i.id);
+        await touchNote(ed.id); await refresh(['note_items', 'notes']); render(); break;
+      }
+      case 'push': await enablePush(); break;
+      case 'test-notif': await testNotif(); break;
+      case 'logout':
+        if (!confirm('ログアウトしますか？')) break;
+        await sb.auth.signOut(); location.reload(); break;
+      case 'demo-as': lsSet('famcal_demo_color', id); setDemoProfile(); render(); break;
+      case 'demo-clear':
+        if (!confirm('デモデータをすべて消しますか？')) break;
+        ['events', 'notes', 'note_items'].forEach(t => lsSet('famcal_demo_' + t, '[]'));
+        await refresh(); render(); toast('消しました'); break;
+      case 'pcolor':
+        $('#profileForm').dataset.color = id;
+        document.querySelectorAll('[data-act=pcolor]').forEach(b => b.classList.toggle('on', b.dataset.id === id)); break;
+    }
+  } catch (e) { fail(e); }
+});
+
+document.addEventListener('change', async ev => {
+  const t = ev.target;
+  try {
+    if (t.id === 'f-allday') {
+      $('#f-times').classList.toggle('hidden', t.checked);
+      if (!t.checked && !$('#f-start').value) { $('#f-start').value = '09:00'; }
+      const cur = $('#f-remind').value;
+      $('#f-remind').innerHTML = remindOptions(t.checked, cur === '' ? null : Number(cur));
+    } else if (t.dataset.item) {
+      await api.update('note_items', t.dataset.item, { done: t.checked });
+      await touchNote(ed.id); await refresh(['note_items', 'notes']); renderItems(); updateEditor(currentNote());
+    } else if (t.dataset.itemtext) {
+      const text = t.value.trim();
+      if (!text) { await api.remove('note_items', t.dataset.itemtext); }
+      else await api.update('note_items', t.dataset.itemtext, { text });
+      await touchNote(ed.id); await refresh(['note_items', 'notes']);
+      if (!$('#items').contains(document.activeElement)) renderItems(); else ed.pendingItems = true;
+    }
+  } catch (e) { fail(e); }
+});
+
+document.addEventListener('input', ev => {
+  if (ev.target.id === 'n-title' || ev.target.id === 'n-body') scheduleNoteSave();
+});
+document.addEventListener('focusout', () => {
+  setTimeout(() => { if (ed && ed.pendingItems && $('#items') && !$('#items').contains(document.activeElement)) renderItems(); }, 0);
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && ev.target.dataset && ev.target.dataset.itemtext) { ev.preventDefault(); ev.target.blur(); }
+});
+
+document.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    if (f.id === 'loginForm') {
+      $('#l-err').textContent = '';
+      const { data, error } = await sb.auth.signInWithPassword({ email: $('#l-email').value.trim(), password: $('#l-pass').value });
+      if (error) { $('#l-err').textContent = 'ログインできませんでした。メールアドレスとパスワードを確認してください。'; return; }
+      await afterLogin(data.user);
+    } else if (f.id === 'profileForm') {
+      const name = $('#p-name').value.trim();
+      if (!name) return;
+      const { error } = await sb.from('profiles').insert({ id: state.user.id, name, color: f.dataset.color });
+      if (error) { $('#p-err').textContent = 'その色はすでに使われています。もう一方の色を選んでください。'; state.profiles = await api.list('profiles'); return; }
+      await afterLogin(state.user);
+    } else if (f.id === 'addItem') {
+      const inp = $('#newItem'), text = inp.value.trim();
+      if (!text) return;
+      const its = itemsOf(ed.id);
+      const pos = its.length ? Math.max(...its.map(i => i.position)) + 1 : 0;
+      inp.value = '';
+      await api.insert('note_items', { note_id: ed.id, text, done: false, position: pos });
+      await touchNote(ed.id); await refresh(['note_items', 'notes']); renderItems(); updateEditor(currentNote());
+      inp.focus();
+    }
+  } catch (e) { fail(e); }
+});
+
+boot().catch(fail);
+})();
+</script>
+</body>
+</html>
