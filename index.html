@@ -165,7 +165,9 @@ textarea.inp{min-height:80px;resize:vertical}
 // ===== 基本 =====
 const CFG = window.APP_CONFIG || {};
 const DEMO = !(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
-const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+// npm公式配布物（@supabase/supabase-js 2.45.4 の dist/umd/supabase.js）を同梱。Service Workerで端末に保存される
+const SUPABASE_JS = 'vendor/supabase-2.45.4.min.js';
+const CACHE_KEY = 'famcal_cache_v1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad = n => String(n).padStart(2, '0');
@@ -237,12 +239,39 @@ function sbApi(client) {
 const TABLES = ['events', 'notes', 'note_items', 'profiles'];
 const KEY = { events: 'events', notes: 'notes', note_items: 'items', profiles: 'profiles' };
 async function refresh(tables = TABLES) {
+  if (!api) return; // 起動直後（前回データを表示中）はまだ通信できない
   const res = await Promise.all(tables.map(t => api.list(t)));
   tables.forEach((t, i) => {
     if (t === 'profiles' && DEMO) return;
     state[KEY[t]] = res[i];
   });
-  if (!DEMO) state.profile = state.profiles.find(p => p.id === state.user.id) || state.profile;
+  if (!DEMO) {
+    state.profile = state.profiles.find(p => p.id === state.user.id) || state.profile;
+    saveCache();
+  }
+}
+
+// ===== 前回データの保存（次回起動時にすぐ表示するため） =====
+function saveCache() {
+  if (!state.user || !state.profile) return;
+  lsSet(CACHE_KEY, JSON.stringify({
+    user: { id: state.user.id, email: state.user.email || '' },
+    profiles: state.profiles, events: state.events, notes: state.notes, items: state.items
+  }));
+}
+function loadCache() {
+  try { return JSON.parse(lsGet(CACHE_KEY) || 'null'); } catch { return null; }
+}
+function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch {} }
+function hasStoredSession() {
+  try { return Object.keys(localStorage).some(k => k.startsWith('sb-') && k.endsWith('-auth-token')); } catch { return false; }
+}
+
+// ===== アイコンのバッジ（相手が予定を追加したときの数字）を消す =====
+function clearBadge() {
+  if (DEMO) return;
+  try { if ('clearAppBadge' in navigator) navigator.clearAppBadge().catch(() => {}); } catch {}
+  try { if ('caches' in window) caches.open('famcal-badge').then(c => c.put('./badge-count', new Response('0'))).catch(() => {}); } catch {}
 }
 let pendingTables = new Set();
 function onRemote(table) {
@@ -311,26 +340,42 @@ async function boot() {
       <code>python3 -m http.server 8766</code><br>をこのフォルダで実行し、<code>http://localhost:8766/</code> を開いてください。</p></div>`;
     return;
   }
+  clearBadge();
+  // ① 前回のデータがあれば、通信を待たずにすぐ表示する（裏で最新に更新）
+  const cached = hasStoredSession() ? loadCache() : null;
+  if (cached && cached.user) {
+    state.user = cached.user;
+    state.profiles = cached.profiles || [];
+    state.events = cached.events || [];
+    state.notes = cached.notes || [];
+    state.items = cached.items || [];
+    state.profile = state.profiles.find(p => p.id === cached.user.id) || null;
+    if (state.profile) render();
+  }
+  // ② ライブラリ読み込み → ログイン確認 → 最新データ取得
   try { await loadScript(SUPABASE_JS); }
-  catch { $('#root').innerHTML = '<div class="center"><p class="err">ライブラリを読み込めませんでした。通信状況を確認して、再度開いてください。</p></div>'; return; }
+  catch { if (!state.profile) $('#root').innerHTML = '<div class="center"><p class="err">読み込みに失敗しました。通信状況を確認して、再度開いてください。</p></div>'; return; }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-  api = sbApi(sb);
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) return renderLogin();
+  if (!session) { clearCache(); state.profile = null; return renderLogin(); }
+  api = sbApi(sb);
   await afterLogin(session.user);
 }
 async function afterLogin(user) {
   state.user = user;
-  try { state.profiles = await api.list('profiles'); } catch (e) { return fail(e); }
+  if (!api) api = sbApi(sb);
+  // プロフィール・予定・メモをまとめて1回で取得
+  try { await refresh(); } catch (e) { if (!state.profile) return fail(e); console.error(e); }
   state.profile = state.profiles.find(p => p.id === user.id) || null;
-  if (!state.profile) return renderProfileSetup();
+  if (!state.profile) { clearCache(); return renderProfileSetup(); }
   if (!subscribed) { api.onChange(onRemote); subscribed = true; }
-  try { await refresh(); } catch (e) { fail(e); }
   render();
 }
 document.addEventListener('visibilitychange', () => {
   // iPhoneでアプリに戻ったとき、離れていた間の変更を取り込む
-  if (document.visibilityState === 'visible' && api && state.profile) refresh().then(render).catch(console.error);
+  if (document.visibilityState !== 'visible') return;
+  clearBadge();
+  if (api && state.profile) refresh().then(render).catch(console.error);
 });
 
 // ===== ログイン・初期設定 =====
@@ -586,6 +631,7 @@ function scheduleNoteSave() {
 async function saveNote() {
   if (!ed || !ed.dirty) return;
   clearTimeout(ed.timer);
+  if (!api) { ed.timer = setTimeout(saveNote, 500); return; } // 通信準備ができたら保存
   const patch = { title: $('#n-title').value, updated_at: nowIso(), updated_by: state.user.id };
   if ($('#n-body')) patch.body = $('#n-body').value;
   const id = ed.id;
@@ -601,7 +647,7 @@ async function touchNote(id) {
   await api.update('notes', id, patch);
 }
 async function leaveEditor() {
-  if (ed) {
+  if (ed && api) {
     await saveNote();
     const n = currentNote();
     if (n && n.kind === 'text' && !n.title.trim() && !n.body.trim()) { try { await api.remove('notes', n.id); } catch {} }
@@ -632,7 +678,8 @@ function renderSettings() {
       <p id="pushStatus">確認中…</p>
       ${DEMO ? '' : '<button class="btn dark" data-act="push">この端末で通知をオンにする</button>'}
       <button class="btn" data-act="test-notif">テスト通知を表示</button>
-      <p class="hint">自分の予定は自分に、共通の予定は2人ともに通知されます。</p></section>
+      <p class="hint">リマインド：自分の予定は自分に、共通の予定は2人ともに通知されます。<br>
+      相手が予定を追加したときも通知され、アイコンに件数のバッジが付きます（アプリを開くと消えます）。</p></section>
     ${DEMO ? `<section class="card"><h3>デモモード</h3>
       <p>Supabaseが未設定のため、このブラウザの中だけで動いています。同じブラウザで別のタブを開くと、変更がすぐ反映される様子を試せます。</p>
       <div class="field"><span>表示する人を切り替え</span><div class="chips">
@@ -679,6 +726,8 @@ document.addEventListener('click', async ev => {
   const el = ev.target.closest('[data-act]');
   if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
+  const NEEDS_API = ['save', 'ev-del', 'new-note', 'del-note', 'item-del', 'clear-done', 'push', 'logout'];
+  if (!api && NEEDS_API.includes(act)) return toast('読み込み中です。少し待ってからもう一度押してください');
   try {
     switch (act) {
       case 'tab':
@@ -726,7 +775,7 @@ document.addEventListener('click', async ev => {
       case 'test-notif': await testNotif(); break;
       case 'logout':
         if (!confirm('ログアウトしますか？')) break;
-        await sb.auth.signOut(); location.reload(); break;
+        clearCache(); await sb.auth.signOut(); location.reload(); break;
       case 'demo-as': lsSet('famcal_demo_color', id); setDemoProfile(); render(); break;
       case 'demo-clear':
         if (!confirm('デモデータをすべて消しますか？')) break;
@@ -747,6 +796,9 @@ document.addEventListener('change', async ev => {
       if (!t.checked && !$('#f-start').value) { $('#f-start').value = '09:00'; }
       const cur = $('#f-remind').value;
       $('#f-remind').innerHTML = remindOptions(t.checked, cur === '' ? null : Number(cur));
+    } else if ((t.dataset.item || t.dataset.itemtext) && !api) {
+      toast('読み込み中です。少し待ってからもう一度操作してください');
+      renderItems();
     } else if (t.dataset.item) {
       await api.update('note_items', t.dataset.item, { done: t.checked });
       await touchNote(ed.id); await refresh(['note_items', 'notes']); renderItems(); updateEditor(currentNote());
@@ -788,6 +840,7 @@ document.addEventListener('submit', async ev => {
     } else if (f.id === 'addItem') {
       const inp = $('#newItem'), text = inp.value.trim();
       if (!text) return;
+      if (!api) return toast('読み込み中です。少し待ってからもう一度追加してください');
       const its = itemsOf(ed.id);
       const pos = its.length ? Math.max(...its.map(i => i.position)) + 1 : 0;
       inp.value = '';

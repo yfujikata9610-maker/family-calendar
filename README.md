@@ -16,6 +16,10 @@
 | `supabase/01_schema.sql` | データベース定義（SQL Editorで1回実行） |
 | `supabase/functions/send-reminders/index.ts` | リマインド通知を送る関数 |
 | `supabase/02_cron.sql` | 1分ごとの通知チェック（関数デプロイ後に実行） |
+| `supabase/03_new_event_trigger.sql` | 相手が予定を追加したときの通知（関数デプロイ後に実行） |
+| `vendor/` | Supabaseライブラリ（npm公式配布物 2.45.4 をそのまま同梱） |
+
+アプリを更新したら `sw.js` の `CACHE` の番号を上げる（iPhone側は「次に開いたとき」に新しい版になる）。
 
 ## デモモードで試す
 
