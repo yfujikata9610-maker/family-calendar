@@ -1,7 +1,7 @@
 // 家族カレンダー Service Worker
 // 役割: ①アプリ本体を端末に保存して即起動 ②通知の受信 ③アイコンのバッジ
 // ※ アプリを更新したら CACHE の番号を上げる
-const CACHE = 'futari-cal-v2';
+const CACHE = 'futari-cal-v3';
 const BADGE = 'famcal-badge'; // バッジ件数の保存場所（アプリ更新でも消さない）
 const ASSETS = [
   './', './index.html', './config.js', './manifest.webmanifest',

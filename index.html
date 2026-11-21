@@ -49,7 +49,11 @@ main{padding:0 12px calc(96px + var(--sb));max-width:720px;margin:0 auto}
 .iconbtn{width:42px;height:42px;border-radius:10px;font-size:24px;line-height:42px}
 .iconbtn:active{background:var(--soft)}
 .pillbtn{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px}
-.cal{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.cal{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line);touch-action:pan-y}
+.cal.slide-next{animation:slideNext .22s ease-out}
+.cal.slide-prev{animation:slidePrev .22s ease-out}
+@keyframes slideNext{from{transform:translateX(40px);opacity:.3}to{transform:none;opacity:1}}
+@keyframes slidePrev{from{transform:translateX(-40px);opacity:.3}to{transform:none;opacity:1}}
 .wd,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .wd div{text-align:center;font-size:12px;color:var(--sub);padding:6px 0;border-bottom:1px solid var(--line)}
 .wd div:first-child{color:var(--red)}
@@ -721,6 +725,32 @@ async function testNotif() {
   } catch (e) { fail(e); }
 }
 
+// ===== 月の移動（ボタン・スワイプ共通） =====
+function moveMonth(n) {
+  const m = state.month;
+  state.month = new Date(m.getFullYear(), m.getMonth() + n, 1);
+  render();
+  const cal = $('.cal');
+  if (cal) cal.classList.add(n > 0 ? 'slide-next' : 'slide-prev');
+}
+// カレンダー部分を左へスワイプ→次の月、右へスワイプ→前の月
+let touch = null, swipedAt = 0;
+document.addEventListener('touchstart', e => {
+  if (state.tab !== 'cal' || e.touches.length !== 1 || !e.target.closest('.cal')) { touch = null; return; }
+  touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!touch) return;
+  const p = e.changedTouches[0], dx = p.clientX - touch.x, dy = p.clientY - touch.y;
+  const quick = Date.now() - touch.t < 800;
+  touch = null;
+  if (quick && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    swipedAt = Date.now();
+    moveMonth(dx < 0 ? 1 : -1);
+  }
+}, { passive: true });
+document.addEventListener('touchcancel', () => { touch = null; }, { passive: true });
+
 // ===== 操作 =====
 document.addEventListener('click', async ev => {
   const el = ev.target.closest('[data-act]');
@@ -733,11 +763,10 @@ document.addEventListener('click', async ev => {
       case 'tab':
         if (state.tab === 'notes' && state.noteId) await leaveEditor();
         state.tab = id; render(); window.scrollTo(0, 0); break;
-      case 'prev': case 'next': {
-        const m = state.month; state.month = new Date(m.getFullYear(), m.getMonth() + (act === 'next' ? 1 : -1), 1); render(); break;
-      }
+      case 'prev': case 'next': moveMonth(act === 'next' ? 1 : -1); break;
       case 'today': { const t = new Date(); state.month = new Date(t.getFullYear(), t.getMonth(), 1); state.sel = ymd(t); render(); break; }
       case 'day': {
+        if (Date.now() - swipedAt < 400) break; // スワイプ直後の誤タップを無視
         state.sel = id; const d = parseYmd(id);
         if (d.getMonth() !== state.month.getMonth()) state.month = new Date(d.getFullYear(), d.getMonth(), 1);
         render(); break;
